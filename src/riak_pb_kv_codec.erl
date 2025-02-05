@@ -55,11 +55,7 @@
 -type symbolic_quorum() :: one | quorum | all | default.
 -type value() :: binary().
 
--ifdef(namespaced_types).
--type metadata() :: dict:dict(binary(), binary()).
--else.
--type metadata() :: dict().
--endif.
+-type metadata() :: #{binary() => binary()}.
 
 -type contents() :: [{metadata(), value()}].
 
@@ -87,10 +83,10 @@ encode_content({MetadataIn, ValueIn}=C) ->
                 %% PBC needs to send a binary, so replace the content type
                 %% to mark it as an erlang binary and encode
                 %% the term as a binary.
-                {dict:store(?MD_CTYPE, ?CTYPE_ERLANG_BINARY, MetadataIn),
+                {maps:put(?MD_CTYPE, ?CTYPE_ERLANG_BINARY, MetadataIn),
                  term_to_binary(ValueIn)}
         end,
-    dict:fold(fun encode_content_meta/3, #rpbcontent{value = Value}, Metadata).
+    maps:fold(fun encode_content_meta/3, #rpbcontent{value = Value}, Metadata).
 
 %% @doc Convert the metadata dictionary entries to protocol buffers
 -spec encode_content_meta(MetadataKey::string(), any(), tuple()) -> tuple().
@@ -179,17 +175,18 @@ decode_content_meta(deleted, DeletedVal, _Pb) ->
 %% @doc Convert an rpccontent pb message to an erlang {MetaData,Value} tuple
 -spec decode_content(PBContent::tuple()) -> {metadata(), binary()}.
 decode_content(PbC) ->
-    MD =  decode_content_meta(content_type, PbC#rpbcontent.content_type, PbC) ++
-          decode_content_meta(charset, PbC#rpbcontent.charset, PbC) ++
-          decode_content_meta(encoding, PbC#rpbcontent.content_encoding, PbC) ++
-          decode_content_meta(vtag, PbC#rpbcontent.vtag, PbC) ++
-          decode_content_meta(links, PbC#rpbcontent.links, PbC) ++
-          decode_content_meta(last_mod, PbC#rpbcontent.last_mod, PbC) ++
-          decode_content_meta(usermeta, PbC#rpbcontent.usermeta, PbC) ++
-          decode_content_meta(indexes, PbC#rpbcontent.indexes, PbC) ++
-          decode_content_meta(deleted, PbC#rpbcontent.deleted, PbC),
+    MD = 
+        decode_content_meta(content_type, PbC#rpbcontent.content_type, PbC) ++
+        decode_content_meta(charset, PbC#rpbcontent.charset, PbC) ++
+        decode_content_meta(encoding, PbC#rpbcontent.content_encoding, PbC) ++
+        decode_content_meta(vtag, PbC#rpbcontent.vtag, PbC) ++
+        decode_content_meta(links, PbC#rpbcontent.links, PbC) ++
+        decode_content_meta(last_mod, PbC#rpbcontent.last_mod, PbC) ++
+        decode_content_meta(usermeta, PbC#rpbcontent.usermeta, PbC) ++
+        decode_content_meta(indexes, PbC#rpbcontent.indexes, PbC) ++
+        decode_content_meta(deleted, PbC#rpbcontent.deleted, PbC),
 
-    {dict:from_list(MD), PbC#rpbcontent.value}.
+    {maps:from_list(MD), PbC#rpbcontent.value}.
 
 %% @doc Convert {K,V} index entries into protocol buffers
 -spec encode_index_pair({binary(), integer() | binary()}) -> #rpbpair{}.
