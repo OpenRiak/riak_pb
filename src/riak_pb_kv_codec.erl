@@ -176,17 +176,19 @@ decode_content_meta(deleted, DeletedVal, _Pb) ->
 -spec decode_content(PBContent::tuple()) -> {metadata(), binary()}.
 decode_content(PbC) ->
     MD = 
-        decode_content_meta(content_type, PbC#rpbcontent.content_type, PbC) ++
-        decode_content_meta(charset, PbC#rpbcontent.charset, PbC) ++
-        decode_content_meta(encoding, PbC#rpbcontent.content_encoding, PbC) ++
-        decode_content_meta(vtag, PbC#rpbcontent.vtag, PbC) ++
-        decode_content_meta(links, PbC#rpbcontent.links, PbC) ++
-        decode_content_meta(last_mod, PbC#rpbcontent.last_mod, PbC) ++
-        decode_content_meta(usermeta, PbC#rpbcontent.usermeta, PbC) ++
-        decode_content_meta(indexes, PbC#rpbcontent.indexes, PbC) ++
-        decode_content_meta(deleted, PbC#rpbcontent.deleted, PbC),
+        [
+            decode_content_meta(content_type, PbC#rpbcontent.content_type, PbC),
+            decode_content_meta(charset, PbC#rpbcontent.charset, PbC),
+            decode_content_meta(encoding, PbC#rpbcontent.content_encoding, PbC),
+            decode_content_meta(vtag, PbC#rpbcontent.vtag, PbC),
+            decode_content_meta(links, PbC#rpbcontent.links, PbC),
+            decode_content_meta(last_mod, PbC#rpbcontent.last_mod, PbC),
+            decode_content_meta(usermeta, PbC#rpbcontent.usermeta, PbC),
+            decode_content_meta(indexes, PbC#rpbcontent.indexes, PbC),
+            decode_content_meta(deleted, PbC#rpbcontent.deleted, PbC)
+        ],
 
-    {maps:from_list(MD), PbC#rpbcontent.value}.
+    {maps:from_list(lists:flatten(MD)), PbC#rpbcontent.value}.
 
 %% @doc Convert {K,V} index entries into protocol buffers
 -spec encode_index_pair({binary(), integer() | binary()}) -> #rpbpair{}.
