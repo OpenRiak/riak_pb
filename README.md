@@ -3,7 +3,7 @@
 ![Riak PB OpenRiak Status](https://github.com/OpenRiak/riak_pb/actions/workflows/erlang.yml/badge.svg?branch=openriak-3.2)
 
 This repository contains the message definitions for the Protocol
-Buffers-based interface to [Riak](https://github.com/basho/riak) and
+Buffers-based interface to [Riak](https://github.com/OpenRiak/riak) and
 various Erlang-specific utility modules for the message types.
 
 This is distributed separately from the Riak server and clients,
@@ -46,59 +46,3 @@ acknowledgment.
 In some cases, a client may receive multiple response messages for a
 single request. The response message will typically include a boolean
 `done` field that signifies the last message in a sequence.
-
-### Registered Message Codes
-
-[Message codes](http://docs.basho.com/riak/latest/dev/references/protocol-buffers/#Message-Codes) and documentation can be found in the protocol-buffers
-[section](http://docs.basho.com/riak/latest/dev/references/protocol-buffers/) of the online docs.
-
-## Contributing
-
-Generally, you should not need to modify this repository unless you
-are adding new client-facing features to Riak or fixing a
-bug. Nevertheless, we encourage contributions to `riak_pb` from the
-community.
-
-1. Fork the [`riak_pb`](https://github.com/basho/riak_pb) repository
-   on Github.
-2. Clone your fork or add the remote if you already have a clone of
-   the repository.
-
-    ```
-    git clone git@github.com:yourusername/riak_pb.git
-    # or
-    git remote add mine git@github.com:yourusername/riak_pb.git
-    ```
-
-3. Create a topic branch for your change.
-
-    ```
-    git checkout -b some-topic-branch
-    ```
-
-4. Make your change and commit. Use a clear and descriptive commit
-   message, spanning multiple lines if detailed explanation is needed.
-5. Push to your fork of the repository and then send a pull-request
-   through Github.
-
-    ```
-    git push mine some-topic-branch
-    ```
-
-6. A Basho engineer or community maintainer will review your patch and
-   merge it into the main repository or send you feedback.
-
-## Build Prerequisites
-
-* protoc v 2.5.0
-
-On OSX the default version installed by brew is 2.6.x (Nov 2015)
-this version is too new for the Maven protocol-buffers plugin.
-
-You can install the correct version like so.
-    
-  ```
-    brew tap homebrew/versions
-    brew install homebrew/versions/protobuf250
-  ```
-
