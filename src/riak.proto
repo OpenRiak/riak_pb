@@ -159,6 +159,11 @@ message RpbBucketProps {
 
     // Hyperlolog DT Precision
     optional uint32 hll_precision = 29;
+
+    // Post 2.2 bucket properties
+    optional uint32 node_confirms = 30;
+    optional bytes sync_on_write = 31;
+    optional bool aae_tree_exclude = 32; 
 }
 
 // Authentication request
