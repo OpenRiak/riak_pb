@@ -87,7 +87,8 @@ message RpbPutReq {
     optional bool sloppy_quorum = 14; // Experimental, may change/disappear
     optional uint32 n_val = 15;       // Experimental, may change/disappear
     optional bytes type = 16;         // Bucket type, if not set we assume the 'default' type
-    optional uint32 node_confirms = 17; // Distinct phycical node quorum
+    optional uint32 node_confirms = 17; // Distinct physical node quorum
+    optional bytes sync_on_write = 18 // Force sync to disk
 }
 
 // Put response - same as get response with optional key if one was generated
