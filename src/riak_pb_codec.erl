@@ -246,7 +246,7 @@ decode_bucket_props(
        {BProp, Bool} <- [{allow_mult, AM}, {last_write_wins, LWW},
                          {basic_quorum, BQ}, {notfound_ok, NFOK},
                          {search, Search}, {consistent, Consistent},
-                         {write_once, WriteOnce}, {aae_tree_exclde, TreeExclude}],
+                         {write_once, WriteOnce}, {aae_tree_exclude, TreeExclude}],
         Bool /= undefined ] ++
 
     %% Extract commit hooks
