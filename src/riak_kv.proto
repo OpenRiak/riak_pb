@@ -74,7 +74,7 @@ message RpbPutReq {
     enum SyncOnWrite{
         backend = 0;
         one = 1;
-        all =2;
+        all = 2;
     }
 
     required bytes bucket = 1;

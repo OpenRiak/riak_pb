@@ -163,7 +163,7 @@ message RpbBucketProps {
     enum SyncOnWrite{
         backend = 0;
         one = 1;
-        all =2;
+        all = 2;
     }
     // Post 2.2 bucket properties
     optional uint32 node_confirms = 30;
