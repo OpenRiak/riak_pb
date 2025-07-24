@@ -33,10 +33,6 @@
 -compile([export_all, nowarn_export_all]).
 -endif.
 
--define(RIAKPB_SOW_ONE, <<"one">>).
--define(RIAKPB_SOW_BACKEND, <<"backend">>).
--define(RIAKPB_SOW_ALL, <<"all">>).
-
 -export([encode/1,      %% riakc_pb:encode
          decode/2,      %% riakc_pb:decode
          msg_type/1,    %% riakc_pb:msg_type
@@ -271,9 +267,9 @@ decode_bucket_props(
     %% Extract repl prop
     [ {repl, decode_repl(Repl)} || Repl /= undefined ] ++
 
-    [ {sync_on_write, one} || SyncOnWrite == ?RIAKPB_SOW_ONE ] ++
-    [ {sync_on_write, backend} || SyncOnWrite == ?RIAKPB_SOW_BACKEND ] ++
-    [ {sync_on_write, all} || SyncOnWrite == ?RIAKPB_SOW_ALL ] ++
+    [ {sync_on_write, SyncOnWrite} || SyncOnWrite == backend ] ++
+    [ {sync_on_write, SyncOnWrite} || SyncOnWrite == all ] ++
+    [ {sync_on_write, SyncOnWrite} || SyncOnWrite == one ] ++
 
     [ {node_confirms, NodeConfirms} || is_integer(NodeConfirms), NodeConfirms >= 0] ++
 
@@ -350,12 +346,9 @@ encode_bucket_props([{hll_precision, Num}|Rest], Pb) ->
     encode_bucket_props(Rest, Pb#rpbbucketprops{hll_precision = Num});
 encode_bucket_props([{node_confirms, Num}|Rest], Pb) when is_integer(Num), Num >= 0 ->
     encode_bucket_props(Rest, Pb#rpbbucketprops{node_confirms = Num});
-encode_bucket_props([{sync_on_write, SW}|Rest], Pb) when SW == backend ->
-    encode_bucket_props(Rest, Pb#rpbbucketprops{sync_on_write = ?RIAKPB_SOW_BACKEND});
-encode_bucket_props([{sync_on_write, SW}|Rest], Pb) when SW == one ->
-    encode_bucket_props(Rest, Pb#rpbbucketprops{sync_on_write = ?RIAKPB_SOW_ONE});
-encode_bucket_props([{sync_on_write, SW}|Rest], Pb) when SW == all ->
-    encode_bucket_props(Rest, Pb#rpbbucketprops{sync_on_write = ?RIAKPB_SOW_ALL});
+encode_bucket_props([{sync_on_write, SW}|Rest], Pb)
+        when SW == backend; SW == one; SW == all ->
+    encode_bucket_props(Rest, Pb#rpbbucketprops{sync_on_write = SW});
 encode_bucket_props([{aae_tree_exclude, ATE}|Rest], Pb) when is_boolean(ATE) ->
     encode_bucket_props(Rest, Pb#rpbbucketprops{aae_tree_exclude = encode_bool(ATE)});
 encode_bucket_props([_Ignore|Rest], Pb) ->
