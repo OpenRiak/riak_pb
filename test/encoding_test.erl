@@ -29,7 +29,7 @@ pb_test_() ->
                                            iolist_to_binary(riak_kv_pb:encode_msg(
                                              riak_pb_kv_codec:encode_content({MetaData, Value}))),
                                            rpbcontent)),
-                 ?assertEqual(lists:sort(maps:to_list(MetaData)), lists:sort(maps:to_list(MetaData2))),
+                 ?assertEqual(lists:sort(maps:to_list(MetaData)), lists:sort(MetaData2)),
                  ?assertEqual(Value, Value2)
              end)},
      {"deleted header encode decode",
@@ -44,10 +44,10 @@ pb_test_() ->
                                           riak_pb_kv_codec:encode_content({MD, Value}))),
                                         rpbcontent)) ||
                                        MD <- InputMD]),
-                 MdSame1 = (lists:sort(maps:to_list(lists:nth(1, OutputMD))) =:=
-                                lists:sort(maps:to_list(lists:nth(2, OutputMD)))),
-                 MdSame2 = (lists:sort(maps:to_list(lists:nth(3, OutputMD))) =:=
-                                lists:sort(maps:to_list(lists:nth(4, OutputMD)))),
+                 MdSame1 = (lists:sort(lists:nth(1, OutputMD)) =:=
+                                lists:sort(lists:nth(2, OutputMD))),
+                 MdSame2 = (lists:sort(lists:nth(3, OutputMD)) =:=
+                                lists:sort(lists:nth(4, OutputMD))),
                  ?assertEqual(true, MdSame1),
                  ?assertEqual(true, MdSame2)
              end)},
@@ -63,7 +63,7 @@ pb_test_() ->
                                            iolist_to_binary(riak_kv_pb:encode_msg(
                                              riak_pb_kv_codec:encode_content({InputMD, Value}))),
                                            rpbcontent)),
-                 ?assertEqual(ExpectedMD, maps:to_list(OutputMD))
+                 ?assertEqual(ExpectedMD, OutputMD)
              end)},
      {"empty content encode decode",
       ?_test(begin
@@ -74,7 +74,7 @@ pb_test_() ->
                                            iolist_to_binary(riak_kv_pb:encode_msg(
                                              riak_pb_kv_codec:encode_content({MetaData, Value}))),
                                            rpbcontent)),
-                 ?assertEqual([], maps:to_list(MetaData2)),
+                 ?assertEqual([], MetaData2),
                  ?assertEqual(Value, Value2)
              end)},
      {"empty repeated metas are removed/ignored",
@@ -86,7 +86,7 @@ pb_test_() ->
                                            iolist_to_binary(riak_kv_pb:encode_msg(
                                              riak_pb_kv_codec:encode_content({MetaData, Value}))),
                                            rpbcontent)),
-                 ?assertEqual([], maps:to_list(MetaData2)),
+                 ?assertEqual([], MetaData2),
                  ?assertEqual(Value, Value2)
              end)},
      {"riak_dt-dtfetchreq-encode-decode",
