@@ -200,32 +200,38 @@ decode_pair(#rpbpair{key = K, value = V}) ->
 -spec decode_bucket_props(PBProps::#rpbbucketprops{} | undefined) -> [proplists:property()].
 decode_bucket_props(undefined) ->
     [];
-decode_bucket_props(#rpbbucketprops{n_val=N,
-                                    allow_mult=AM,
-                                    last_write_wins=LWW,
-                                    precommit=Pre,
-                                    has_precommit=HasPre,
-                                    postcommit=Post,
-                                    has_postcommit=HasPost,
-                                    chash_keyfun=Chash,
-                                    linkfun=Link,
-                                    old_vclock=Old,
-                                    young_vclock=Young,
-                                    big_vclock=Big,
-                                    small_vclock=Small,
-                                    pr=PR, r=R, w=W, pw=PW,
-                                    dw=DW, rw=RW,
-                                    basic_quorum=BQ,
-                                    notfound_ok=NFOK,
-                                    backend=Backend,
-                                    search=Search,
-                                    repl=Repl,
-                                    search_index=Index,
-                                    datatype=Datatype,
-                                    consistent=Consistent,
-                                    write_once=WriteOnce,
-                                    hll_precision=HllPrecision
-                                   }) ->
+decode_bucket_props(
+    #rpbbucketprops{
+        n_val=N,
+        allow_mult=AM,
+        last_write_wins=LWW,
+        precommit=Pre,
+        has_precommit=HasPre,
+        postcommit=Post,
+        has_postcommit=HasPost,
+        chash_keyfun=Chash,
+        linkfun=Link,
+        old_vclock=Old,
+        young_vclock=Young,
+        big_vclock=Big,
+        small_vclock=Small,
+        pr=PR, r=R, w=W, pw=PW,
+        dw=DW, rw=RW,
+        basic_quorum=BQ,
+        notfound_ok=NFOK,
+        backend=Backend,
+        search=Search,
+        repl=Repl,
+        search_index=Index,
+        datatype=Datatype,
+        consistent=Consistent,
+        write_once=WriteOnce,
+        hll_precision=HllPrecision,
+        node_confirms=NodeConfirms,
+        sync_on_write=SyncOnWrite,
+        aae_tree_exclude=TreeExclude
+    }
+) ->
     %% Extract numerical properties
     [ {P,V} || {P,V} <- [{n_val, N}, {old_vclock, Old}, {young_vclock, Young},
                        {big_vclock, Big}, {small_vclock, Small},
@@ -236,7 +242,7 @@ decode_bucket_props(#rpbbucketprops{n_val=N,
        {BProp, Bool} <- [{allow_mult, AM}, {last_write_wins, LWW},
                          {basic_quorum, BQ}, {notfound_ok, NFOK},
                          {search, Search}, {consistent, Consistent},
-                         {write_once, WriteOnce}],
+                         {write_once, WriteOnce}, {aae_tree_exclude, TreeExclude}],
         Bool /= undefined ] ++
 
     %% Extract commit hooks
@@ -260,6 +266,12 @@ decode_bucket_props(#rpbbucketprops{n_val=N,
 
     %% Extract repl prop
     [ {repl, decode_repl(Repl)} || Repl /= undefined ] ++
+
+    [ {sync_on_write, SyncOnWrite} || SyncOnWrite == backend ] ++
+    [ {sync_on_write, SyncOnWrite} || SyncOnWrite == all ] ++
+    [ {sync_on_write, SyncOnWrite} || SyncOnWrite == one ] ++
+
+    [ {node_confirms, NodeConfirms} || is_integer(NodeConfirms), NodeConfirms >= 0] ++
 
     %% Extract datatype prop
     [ {datatype, safe_to_atom(Datatype)} || is_binary(Datatype) ].
@@ -332,6 +344,13 @@ encode_bucket_props([{write_once, S}|Rest], Pb) ->
     encode_bucket_props(Rest, Pb#rpbbucketprops{write_once = encode_bool(S)});
 encode_bucket_props([{hll_precision, Num}|Rest], Pb) ->
     encode_bucket_props(Rest, Pb#rpbbucketprops{hll_precision = Num});
+encode_bucket_props([{node_confirms, Num}|Rest], Pb) when is_integer(Num), Num >= 0 ->
+    encode_bucket_props(Rest, Pb#rpbbucketprops{node_confirms = Num});
+encode_bucket_props([{sync_on_write, SW}|Rest], Pb)
+        when SW == backend; SW == one; SW == all ->
+    encode_bucket_props(Rest, Pb#rpbbucketprops{sync_on_write = SW});
+encode_bucket_props([{aae_tree_exclude, ATE}|Rest], Pb) when is_boolean(ATE) ->
+    encode_bucket_props(Rest, Pb#rpbbucketprops{aae_tree_exclude = encode_bool(ATE)});
 encode_bucket_props([_Ignore|Rest], Pb) ->
     %% Ignore any properties not explicitly part of the PB message
     encode_bucket_props(Rest, Pb).
@@ -419,6 +438,7 @@ safe_to_atom(Binary) when is_binary(Binary) ->
 -ifdef(TEST).
 -include("riak_kv_pb.hrl").
 -include("riak_dt_pb.hrl").
+-include_lib("riak_pb/include/riak_pb_kv_codec.hrl").
 
 %% One necessary omission: we do not have any messages today that
 %% include functions, so we cannot test decoding such records.
