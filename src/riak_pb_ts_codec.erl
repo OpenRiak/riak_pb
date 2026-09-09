@@ -79,7 +79,8 @@ encode_field_type(boolean) ->
 %% @doc Encode a set of time series rows from an internal format to the #tsrow record format.
 %% Takes a list of column types, and a list of rows.
 %% Each row is represented as a list of ldbvalue().
-%% An error is returned if any of the `Rows` individual row length do not match the length of the `ColumnTypes` list.
+%% An error is returned if any of the `Rows' individual row length do not match
+%% the length of the `ColumnTypes' list.
 %% @end
 -spec encode_rows([tscolumntype()], [{ldbvalue()}] | [[ldbvalue()]]) -> [#tsrow{}].
 encode_rows(ColumnTypes, Rows) ->
@@ -103,7 +104,7 @@ encode_columns(ColumnNames, ColumnTypes) ->
 
 
 %% @doc Decode a list of timeseries #tsrow{} to a list of tuples.
-%% Each row is converted through `decode_cells/1`, and the list
+%% Each row is converted through {@link decode_cells/1} and the list
 %% of ldbvalue() is converted to a tuple of ldbvalue().
 %% @end
 -spec decode_rows([#tsrow{}]) -> [{ldbvalue()}].
