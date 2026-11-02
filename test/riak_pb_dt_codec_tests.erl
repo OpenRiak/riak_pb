@@ -30,6 +30,7 @@ operation_type/1,
 decode_fetch_response/1,
 encode_fetch_response/4,
 encode_update_request/4,
+encode_update_response/4,
 decode_update_response/3
 ]).
 
@@ -54,6 +55,35 @@ decode_update_response_test() ->
     #dtupdateresp{set_value = ?SET_VALUE, context = ?CONTEXT}, set, true
   ),
   ?assertEqual({set, ?SET_VALUE, undefined_context}, Res).
+
+decode_update_response_gset_test() ->
+  Res = decode_update_response(
+    #dtupdateresp{gset_value = ?SET_VALUE, context = ?CONTEXT}, gset, true
+  ),
+  ?assertEqual({gset, ?SET_VALUE, ?CONTEXT}, Res).
+
+decode_update_response_gset_key_test() ->
+  Res = decode_update_response(
+    #dtupdateresp{key = <<"key">>, gset_value = ?SET_VALUE, context = ?CONTEXT},
+    gset, true
+  ),
+  ?assertEqual({<<"key">>, {gset, ?SET_VALUE, ?CONTEXT}}, Res).
+
+encode_update_response_gset_test() ->
+  Resp = encode_update_response(gset, ?SET_VALUE, <<"key">>, ?CONTEXT),
+  ?assertMatch(#dtupdateresp{key = <<"key">>, context = ?CONTEXT,
+                             gset_value = ?SET_VALUE}, Resp).
+
+encode_update_response_gset_wire_test() ->
+  %% the value travels in DtUpdateResp.gset_value over the wire
+  Resp = encode_update_response(gset, ?SET_VALUE, undefined, <<"ctx">>),
+  Bin = iolist_to_binary(riak_pb_codec:encode(Resp)),
+  [Code | Payload] = binary_to_list(Bin),
+  Decoded = riak_pb_codec:decode(Code, list_to_binary(Payload)),
+  ?assertMatch(#dtupdateresp{context = <<"ctx">>, gset_value = ?SET_VALUE},
+               Decoded),
+  ?assertEqual({gset, ?SET_VALUE, <<"ctx">>},
+               decode_update_response(Decoded, gset, true)).
 
 encode_fetch_response_gset_test() ->
   Resp = encode_fetch_response(gset, ?SET_VALUE, ?CONTEXT, []),

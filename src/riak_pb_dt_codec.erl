@@ -548,6 +548,8 @@ decode_update_response(#dtupdateresp{hll_value=Hll, context=Ctx}=Resp, hll,
     maybe_wrap_key({hll, Hll, Ctx}, Resp);
 decode_update_response(#dtupdateresp{set_value=S, context=Ctx}=Resp, set, true) ->
     maybe_wrap_key({set, S, Ctx}, Resp);
+decode_update_response(#dtupdateresp{gset_value=S, context=Ctx}=Resp, gset, true) ->
+    maybe_wrap_key({gset, S, Ctx}, Resp);
 decode_update_response(#dtupdateresp{map_value=M, context=Ctx}=Resp, map, true) ->
     maybe_wrap_key({map, [ decode_map_entry(F) || F <- M ], Ctx}, Resp).
 
@@ -567,6 +569,8 @@ encode_update_response(counter, Value, Key, Context, _Mods) ->
     #dtupdateresp{key=Key, context=Context, counter_value=Value};
 encode_update_response(set, Value, Key, Context, _Mods) ->
     #dtupdateresp{key=Key, context=Context, set_value=Value};
+encode_update_response(gset, Value, Key, Context, _Mods) ->
+    #dtupdateresp{key=Key, context=Context, gset_value=Value};
 encode_update_response(hll, Value, Key, Context, _Mods) ->
     #dtupdateresp{key=Key, context=Context, hll_value=Value};
 encode_update_response(map, Value, Key, Context, Mods) when is_list(Value) ->
