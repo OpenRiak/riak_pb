@@ -33,6 +33,8 @@
 32,RpbSetBucketTypeReq,riak
 33,RpbGetBucketKeyPreflistReq,riak_kv
 34,RpbGetBucketKeyPreflistResp,riak_kv
+35,RpbCloneReq,riak_kv
+36,RpbCloneResp,riak_kv
 40,RpbCSBucketReq,riak_kv
 41,RpbCSBucketResp,riak_kv
 42,RpbIndexBodyResp,riak_kv

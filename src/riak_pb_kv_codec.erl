@@ -62,7 +62,7 @@
 -type contents_decoded() :: [{metadata_as_list(), value()}].
 -type contents_for_encoding() :: [{metadata()|legacy_metadata(), value()}].
 
-%% @doc Annotated preflist type
+%% Annotated preflist type
 -type preflist_with_pnum_ann() :: [{{non_neg_integer(), node()}, primary|fallback}].
 
 

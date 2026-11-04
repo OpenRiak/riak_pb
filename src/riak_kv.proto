@@ -2,7 +2,8 @@
 **
 ** riak_kv.proto: Protocol buffers for riak KV
 **
-** Copyright (c) 2007-2015 Basho Technologies, Inc.  All Rights Reserved.
+** Copyright (c) 2007-2015 Basho Technologies, Inc.
+** Copyright (c) 2024 Workday, Inc.
 **
 ** This file is provided to you under the Apache License,
 ** Version 2.0 (the "License"); you may not use this file
@@ -22,7 +23,7 @@
 */
 
 /*
-** Revision: 1.4
+** Revision: 3.3
 */
 
 // Java package specifiers
@@ -123,6 +124,75 @@ message RpbDelReq {
 }
 
 // Delete response - not defined, will return a RpbDelResp on success or RpbErrorResp on failure
+
+//
+// Clone operations
+//
+// Cloning behavior includes optional addition or removal of a set of
+// Provenance Metadata to be used in Trash/Recycle bin semantics.
+// This metadata and its API exposure is EXPERIMENTAL and may change without
+// warning until this satement is removed!
+// Ideally, the 'prov_meta' field would be an Enum of 'store' | 'strip', but
+// that mapping is convoluted in Erlang.
+//
+message RpbCloneReq {
+    required bytes  src_bucket = 1;
+    optional bytes  src_bucket_type = 2;// 'default' if unset
+    required bytes  src_key = 3;
+    optional bytes  src_vclock = 4;     // must match if specified
+
+    required bytes  dst_bucket = 5;
+    optional bytes  dst_bucket_type = 6;// 'default' if unset
+    optional bytes  dst_key = 7;        // generated and returned if unset
+    optional bytes  dst_prov_meta = 8;  // Provenance Metadata action: 'store' | 'strip'
+
+    optional bool   return_body = 9;    // 'return_head' is default
+    optional bool   delete_src = 10;    // 'Move' if true, else 'Copy'
+
+    optional uint32 r   = 11;
+    optional uint32 pr  = 12;
+    optional uint32 w   = 13;
+    optional uint32 pw  = 14;
+    optional uint32 dw  = 15;
+    optional uint32 rw  = 16;
+    optional uint32 n_val = 17;
+    optional uint32 timeout = 18;
+    optional uint32 recv_timeout = 19;
+    optional bool   basic_quorum = 20;
+    optional bool   sloppy_quorum = 21;
+    optional bool   notfound_ok = 22;
+    optional bool   asis = 23;
+    optional bytes  sync_on_write = 24;
+    repeated bytes  details = 25;
+}
+
+// Clone response on success or failure.
+//
+// If the 'error' field is 'undefined' the record indicates success,
+// containing at least 'content' and 'vclock' and, if the key was
+// generated, 'key'.
+// If the 'error' field is populated the record indicates failure.
+//
+// In either case the 'details' field *may* be populated with a list of
+// detail K/V pairs if the request's 'details' field was populated - some
+// short-circuit errors return before any details are collected, leaving
+// 'details' undefined.
+// Detail records:
+//  Key     :: atom encoded to binary
+//  Value   :: ETF-encoded term
+//
+// If 'del_fail' is populated, the 'copy' portion of a 'move' operation
+// succeeded but deletion of the source record reported failure, though it
+// still may have succeeded after the response. As such, this is treated as
+// partial success rather than an overall failure.
+message RpbCloneResp {
+    repeated RpbContent content = 1;    // metadata (default) or all content
+    optional bytes vclock = 2;          // the new object's vector clock
+    optional bytes key = 3;             // the new object's key, if generated
+    repeated RpbPair details = 4;       // details, if requested
+    optional bytes del_fail = 5;        // ETF-encoded deletion error term
+    optional bytes error = 6;           // ETF-encoded error term
+}
 
 // List buckets request
 message RpbListBucketsReq {
@@ -371,10 +441,10 @@ message RpbFetchResp{
     required bool queue_empty = 1;
     optional bool deleted = 2; // Present only if queue_empty is false, true if object a tombstone
     optional uint32 crc_check = 3; // CRC check of encoded object
-    optional bytes replencoded_object = 4; // Special repl encoding using for object 
+    optional bytes replencoded_object = 4; // Special repl encoding using for object
     optional bytes deleted_vclock = 5;
     optional uint32 segment_id = 6;
-    optional uint32 segment_hash = 7; 
+    optional uint32 segment_hash = 7;
 }
 
 // Push request - queue a list of keys for replication if at a given clock.
@@ -396,7 +466,7 @@ message RpbMembershipReq{
     optional bytes queuename = 1;
 }
 
-// An IP Port representing the API address of a cluster member 
+// An IP Port representing the API address of a cluster member
 message RpbClusterMemberEntry {
     required bytes ip = 1;
     required uint32 port = 2;
@@ -433,7 +503,7 @@ message RpbAaeFoldMergeTreesRangeReq{
         large = 4;
         xlarge = 5;
     }
-    
+
     optional bytes type = 1;
     required bytes bucket = 2;
     required bool key_range = 10;

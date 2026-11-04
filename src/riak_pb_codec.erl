@@ -2,7 +2,8 @@
 %%
 %% riak_pb_codec: Protocol Buffers encoding/decoding helpers
 %%
-%% Copyright (c) 2012 Basho Technologies, Inc.  All Rights Reserved.
+%% Copyright (c) 2012-2016 Basho Technologies, Inc.
+%% Copyright (c) 2024 Workday, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -19,11 +20,12 @@
 %% under the License.
 %%
 %% -------------------------------------------------------------------
-
 %% @doc Utility functions for Protocol Buffers encoding and
 %% decoding. These are used inside the client and server code and do
 %% not normally need to be used in application code.
 -module(riak_pb_codec).
+
+-include_lib("kernel/include/logger.hrl").
 
 -include("riak_pb.hrl").
 -include("riak_ts_pb.hrl").
@@ -33,28 +35,36 @@
 -compile([export_all, nowarn_export_all]).
 -endif.
 
--export([encode/1,      %% riakc_pb:encode
-         decode/2,      %% riakc_pb:decode
-         msg_type/1,    %% riakc_pb:msg_type
-         msg_code/1,    %% riakc_pb:msg_code
-         decoder_for/1,
-         encoder_for/1,
-         encode_pair/1, %% riakc_pb:pbify_rpbpair
-         decode_pair/1, %% riakc_pb:erlify_rpbpair
-         encode_bool/1, %% riakc_pb:pbify_bool
-         decode_bool/1, %% riakc_pb:erlify_bool
-         to_binary/1,   %% riakc_pb:binary
-         to_list/1,     %% riakc_pb:any_to_list
-         encode_bucket_props/1, %% riakc_pb:pbify_rpbbucketprops
-         decode_bucket_props/1, %% riakc_pb:erlify_rpbbucketprops
-         encode_modfun/1,
-         decode_modfun/2,
-         encode_commit_hooks/1,
-         decode_commit_hooks/1
-        ]).
+-export([
+    encode/1,               %% riakc_pb:encode
+    decode/2,               %% riakc_pb:decode
+    msg_type/1,             %% riakc_pb:msg_type
+    msg_code/1,             %% riakc_pb:msg_code
+    decoder_for/1,
+    encoder_for/1,
+    encode_pair/1,          %% riakc_pb:pbify_rpbpair
+    decode_pair/1,          %% riakc_pb:erlify_rpbpair
+    encode_bool/1,          %% riakc_pb:pbify_bool
+    decode_bool/1,          %% riakc_pb:erlify_bool
+    to_atom/1,
+    to_binary/1,            %% riakc_pb:binary
+    to_list/1,              %% riakc_pb:any_to_list
+    encode_bucket_props/1,  %% riakc_pb:pbify_rpbbucketprops
+    decode_bucket_props/1,  %% riakc_pb:erlify_rpbbucketprops
+    encode_modfun/1,
+    decode_modfun/2,
+    encode_commit_hooks/1,
+    decode_commit_hooks/1,
+    encode_etf_binary/1,
+    decode_etf_binary/1,
+    encode_rich_pair/1, encode_rich_pairs/1,
+    decode_rich_pair/1, decode_rich_pairs/1,
+    encode_timeout/1,
+    decode_timeout/1
+]).
 
-%% @type modfun_property().
-%%
+-type modfun_property() :: {module(), function()} |
+    {modfun, module(), function()} | {struct, [{binary(), binary()}]}.
 %% Bucket properties that store module/function pairs, e.g.
 %% commit hooks, hash functions, link functions, will be in one of
 %% these forms. More specifically:
@@ -63,25 +73,28 @@
 %% chash_keyfun :: {module(), function()}
 %% linkfun :: {modfun, module(), function()}
 %% precommit, postcommit :: [ {struct, [{binary(), binary()}]} ]'''
-%% @end
--type modfun_property() :: {module(), function()} | {modfun, module(), function()} | {struct, [{binary(), binary()}]}.
 
-%% @type commit_hook_field().
-%%
+-type commit_hook_field() :: binary().
 %% Fields that can be specified in a commit hook must be
 %% binaries. The valid values are `<<"mod">>, <<"fun">>, <<"name">>'.
 %% Note that "mod" and "fun" must be used together, and "name" cannot
 %% be used if the other two are present.
--type commit_hook_field() :: binary().
 
-%% @type commit_hook_property().
-%%
-%% Bucket properties that are commit hooks have this format.
 -type commit_hook_property() :: [ {struct, [{commit_hook_field(), binary()}]} ].
+%% Bucket properties that are commit hooks have this format.
+
+-define(MAX_TIMEOUT, 16#ffffffff).
+-type encoded_timeout() :: 0..?MAX_TIMEOUT.
+%% Numeric encoding of the built-in type `timout()'.
+
+-type etf_binary() :: binary().
+%% Binary containing a term encoded in External Term Format.
+%% Unfortunately, we can't specify the `<<131:8, _Tag:8, _Data/binary>>'
+%% pattern properly as a type, so it's just a distinct name.
+
 
 %% @doc Create an iolist of msg code and encoded message. Replaces
 %% `riakc_pb:encode/1'.
-
 -spec encode(atom() | tuple()) -> iolist().
 
 encode(Msg) when is_atom(Msg) ->
@@ -152,8 +165,8 @@ encode_bool(true) ->
     true;
 encode_bool(false) ->
     false;
-encode_bool(0) -> true;
-encode_bool(N) when is_integer(N) -> false.
+encode_bool(0) -> false;
+encode_bool(N) when is_integer(N) -> true.
 
 %% @doc Convert a protocol buffers boolean to an Erlang
 %% boolean. Replaces `riakc_pb:erlify_bool/1'.
@@ -161,7 +174,80 @@ encode_bool(N) when is_integer(N) -> false.
 decode_bool(true) -> true;
 decode_bool(false) -> false;
 decode_bool(0) -> false;
-decode_bool(1) -> true.
+decode_bool(NotZero) when erlang:is_integer(NotZero) -> true.
+
+%% Hijack the highest possible UInt32 value to represent 'infinity',
+%% assuming nobody's setting a ~50 day timeout.
+
+%% @doc Convert a `timeout()' to a `UInt32' value.
+%%
+%% Decode with {@link decode_timeout/1}.
+-spec encode_timeout(timeout()) -> encoded_timeout().
+encode_timeout(infinity) ->
+    ?MAX_TIMEOUT;
+encode_timeout(Val) when is_integer(Val), Val >= 0, Val =< ?MAX_TIMEOUT ->
+    Val;
+encode_timeout(Val) when is_integer(Val), Val > ?MAX_TIMEOUT ->
+    ?MAX_TIMEOUT;
+encode_timeout(Arg) ->
+    erlang:error(badarg, [Arg]).
+
+%% @doc Convert an {@link encode_timeout/1}-encoded `UInt32' value
+%% to a `timeout()'.
+-spec decode_timeout(encoded_timeout()) -> timeout().
+decode_timeout(?MAX_TIMEOUT) ->
+    infinity;
+decode_timeout(Val) when is_integer(Val), Val >= 0, Val < ?MAX_TIMEOUT ->
+    Val;
+decode_timeout(Arg) ->
+    erlang:error(badarg, [Arg]).
+
+%% @doc Encode a Term as an ETF binary, flattening strings if applicable.
+%%
+%% Decode with {@link decode_etf_binary/1}.
+-spec encode_etf_binary(Term :: term()) -> etf_binary().
+encode_etf_binary([_|_] = List) ->
+    case io_lib:deep_char_list(List) of
+        true ->
+            Str = lists:flatten(List),
+            erlang:term_to_binary(Str, [compressed, {minor_version, 2}]);
+        _ ->
+            erlang:term_to_binary(List, [compressed, {minor_version, 2}])
+    end;
+encode_etf_binary(Any) ->
+    erlang:term_to_binary(Any, [compressed, {minor_version, 2}]).
+
+%% @doc Decode a term encoded with {@link encode_etf_binary/1}.
+%%
+%% Note that this function can be used maliciously - <i>DO NOT</i> decode
+%% ETF binaries from untrusted sources!
+%%
+%% Warnings are logged if decoding EtfBin creates new non-GC terms or if
+%% there is additional data in EtfBin beyond the ETF-encoded part ...
+%% <i>but they're still decoded!</i>
+-spec decode_etf_binary(EtfBin :: etf_binary() | undefined)
+        -> term() | undefined.
+decode_etf_binary(undefined) ->
+    undefined;
+decode_etf_binary(<<131:8, _/binary>> = EtfBin) ->
+    {Term, Used} = try
+        erlang:binary_to_term(EtfBin, [safe, used])
+    catch error:badarg ->
+        ?LOG_WARNING(
+            "Creating new non-GC terms from protobuf message! ~0p", [EtfBin]),
+        erlang:binary_to_term(EtfBin, [used])
+    end,
+    case erlang:byte_size(EtfBin) of
+        Used ->
+            Term;
+        Size ->
+            ?LOG_WARNING(
+                "ETF-encoding uses only ~b of ~b total bytes"
+                " from protobuf message! ~0p", [Used, Size, EtfBin]),
+            Term
+    end;
+decode_etf_binary(Arg) ->
+    erlang:error(badarg, [Arg]).
 
 %% @doc Make sure an atom/string/binary is definitely a
 %% binary. Replaces `riakc_pb:to_binary/1'.
@@ -185,15 +271,82 @@ to_list(V) when is_binary(V) ->
 to_list(V) when is_integer(V) ->
     integer_to_list(V).
 
-%% @doc Convert {K,V} tuple to protocol buffers
+%% @doc Convert {K,V} tuple to protocol buffers.
+%%
+%% This encoding <i>IS NOT</i> compatible with "rich" pairs.
 -spec encode_pair({Key::binary(), Value::any()}) -> #rpbpair{}.
 encode_pair({K,V}) ->
     #rpbpair{key = to_binary(K), value = to_binary(V)}.
 
-%% @doc Convert RpbPair PB message to erlang {K,V} tuple
+%% @doc Convert RpbPair PB message to erlang {K,V} tuple.
+%%
+%% This encoding <i>IS NOT</i> compatible with "rich" pairs.
 -spec decode_pair(#rpbpair{}) -> {binary(), binary()}.
 decode_pair(#rpbpair{key = K, value = V}) ->
     {K, V}.
+
+
+%% @doc Encode a list of Key/Value pairs for Protobuf transport, maintaining
+%% complex Value types.
+%%
+%% Keys must be atoms or terms directly convertible to them.
+%% Empty lists are encoded to `undefined' for direct storage in Protobuf
+%% records.
+%%
+%% The Protobuf record field to which the result is assigned should be
+%% specified in the message definition as "repeated RpbPair".
+%%
+%% Note that encoding/decoding rich values adds processing and transport
+%% overhead; use a simpler encoding if you know your Values are simple.
+%%
+%% @see decode_rich_pairs/1
+-spec encode_rich_pairs(NativeKVList :: list({atom(), term()}) | undefined)
+        -> nonempty_list(#rpbpair{}) | undefined.
+encode_rich_pairs(undefined) ->
+    undefined;
+encode_rich_pairs([{_K, _V} | _] = NativeKVList) ->
+    lists:map(fun encode_rich_pair/1, NativeKVList);
+encode_rich_pairs([]) ->
+    undefined;
+encode_rich_pairs(Arg) ->
+    erlang:error(badarg, [Arg]).
+
+%% @doc Encode a Key/Value tuple for Protobuf transport, maintaining
+%% complex Value types.
+-spec encode_rich_pair(
+    {Key :: atom() | binary() | string(), Val :: term()} ) -> #rpbpair{}.
+encode_rich_pair({Key, Val}) ->
+    #rpbpair{key = to_binary(Key), value = encode_etf_binary(Val)}.
+
+%% @doc Decode a list of Protobuf-encoded RpbPair elements into Key/Value
+%% tuples, maintaining complex Value types.
+%%
+%% The list is presumed to have been encoded by {@link encode_rich_pairs/1}.
+%% Resulting Keys will always be atoms; Values will be whatever they were
+%% before encoding.
+%%
+%% Empty lists are decoded to `undefined'.
+%%
+%% Note that encoding/decoding rich values adds processing and transport
+%% overhead; use a simpler encoding if you know your Values are simple.
+%%
+%% @see encode_rich_pairs/1
+-spec decode_rich_pairs(EncodedKVList :: list(#rpbpair{}) | undefined)
+        -> nonempty_list({atom(), term()}) | undefined.
+decode_rich_pairs(undefined) ->
+    undefined;
+decode_rich_pairs([#rpbpair{} | _] = EncodedKVList) ->
+    lists:map(fun decode_rich_pair/1, EncodedKVList);
+decode_rich_pairs([]) ->
+    undefined;
+decode_rich_pairs(Arg) ->
+    erlang:error(badarg, [Arg]).
+
+%% @doc Decode a Protobuf-encoded RpbPair into a Key/Value tuple,
+%% maintaining complex Value types.
+-spec decode_rich_pair(#rpbpair{}) -> {atom(), term()}.
+decode_rich_pair(#rpbpair{key = K, value = V}) ->
+    {to_atom(K), decode_etf_binary(V)}.
 
 
 %% @doc Convert an RpbBucketProps message to a property list
@@ -274,7 +427,7 @@ decode_bucket_props(
     [ {node_confirms, NodeConfirms} || is_integer(NodeConfirms), NodeConfirms >= 0] ++
 
     %% Extract datatype prop
-    [ {datatype, safe_to_atom(Datatype)} || is_binary(Datatype) ].
+    [ {datatype, to_atom(Datatype)} || is_binary(Datatype) ].
 
 
 
@@ -368,6 +521,8 @@ encode_modfun({M, F}) ->
 
 %% @doc Converts an RpbModFun message into the appropriate format for
 %% the given property.
+%%
+%% A warning is logged if the resulting atoms do not already exist.
 -spec decode_modfun(#rpbmodfun{}, atom()) -> modfun_property().
 decode_modfun(MF, linkfun) ->
     {M,F} = decode_modfun(MF, undefined),
@@ -376,11 +531,14 @@ decode_modfun(#rpbmodfun{module=Mod, function=Fun}, commit_hook) ->
     {struct, [{<<"mod">>, Mod}, {<<"fun">>, Fun}]};
 decode_modfun(#rpbmodfun{module=Mod, function=Fun}=MF, _Prop) ->
     try
-        {binary_to_existing_atom(Mod, latin1), binary_to_existing_atom(Fun, latin1)}
+        {erlang:binary_to_existing_atom(Mod, latin1),
+            erlang:binary_to_existing_atom(Fun, latin1)}
     catch
         error:badarg ->
-            error_logger:warning_msg("Creating new atoms from protobuffs message! ~p", [MF]),
-            {binary_to_atom(Mod, latin1), binary_to_atom(Fun, latin1)}
+            ?LOG_WARNING(
+                "Creating new atoms from protobuf message! ~0p", [MF]),
+            {erlang:binary_to_atom(Mod, latin1),
+                erlang:binary_to_atom(Fun, latin1)}
     end.
 
 %% @doc Converts a list of commit hooks into a list of RpbCommitHook
@@ -426,14 +584,32 @@ decode_repl('FALSE') -> false;
 decode_repl('REALTIME') -> realtime;
 decode_repl('FULLSYNC') -> fullsync.
 
-safe_to_atom(Binary) when is_binary(Binary) ->
+%% @doc Convert a suitable Term to an atom.
+%%
+%% A warning is logged if the resulting atom does not already exist.
+-spec to_atom(Term :: atom() | binary() | nonempty_string()) -> atom().
+to_atom(Atom) when erlang:is_atom(Atom) ->
+    Atom;
+to_atom(Bin) when erlang:is_binary(Bin) , erlang:byte_size(Bin) > 0 ->
     try
-        binary_to_existing_atom(Binary, latin1)
+        erlang:binary_to_existing_atom(Bin, latin1)
     catch
         error:badarg ->
-            error_logger:warning_msg("Creating new atom from protobuffs message! ~p", [Binary]),
-            binary_to_atom(Binary, latin1)
-    end.
+            ?LOG_WARNING(
+                "Creating new atom from protobuf message! ~0p", [Bin]),
+            erlang:binary_to_atom(Bin, latin1)
+    end;
+to_atom([_|_] = Str) ->
+    try
+        erlang:list_to_existing_atom(Str)
+    catch
+        error:badarg ->
+            ?LOG_WARNING(
+                "Creating new atom from protobuf message! ~0p", [Str]),
+            erlang:list_to_atom(Str)
+    end;
+to_atom(Term) ->
+    erlang:error(badarg, [Term]).
 
 -ifdef(TEST).
 -include("riak_kv_pb.hrl").
